@@ -12,6 +12,11 @@ type boardTile = struct {
 	value    string
 }
 
+type board = struct {
+	isWinner bool
+	value    [][]boardTile
+}
+
 func main() {
 	//get inputs
 	f, err := os.ReadFile("data.txt")
@@ -33,17 +38,28 @@ func main() {
 
 	//loop over inputs and mark boards
 	drawnNumbers := strings.Split(inputs[0], ",")
-	for _, drawnNumber := range drawnNumbers {
-		for _, board := range boards {
-			markBoard(board, drawnNumber)
+	var lastWinner board
+	for k, drawnNumber := range drawnNumbers {
+
+		for i := range boards {
+
+			if boards[i].isWinner {
+				continue
+			}
+
+			markBoard(boards[i].value, drawnNumber)
 		}
 
 		// on each loop check if there is a winner
-		winner := getWinner(boards)
+		winners := getWinners(boards)
+		numOfWinners := getNumberOfWinners(boards)
 
-		if winner != nil {
-			// calculate winner points
-			sumOfUnmarkedTiles, err := sumUnmarkedTiles(winner)
+		if len(winners) > 0 {
+			lastWinner = winners[0]
+		}
+
+		if k == len(drawnNumbers)-1 || numOfWinners == len(boards) {
+			sumOfUnmarkedTiles, err := sumUnmarkedTiles(lastWinner.value)
 			parsedValue, err := strconv.Atoi(drawnNumber)
 			// log error
 			if err != nil {
@@ -54,8 +70,18 @@ func main() {
 			println(sumOfUnmarkedTiles * parsedValue)
 			break
 		}
-
 	}
+}
+
+func getNumberOfWinners(boards []board) int {
+	var numOfWinners int
+	for _, board := range boards {
+		if board.isWinner {
+			numOfWinners++
+		}
+	}
+
+	return numOfWinners
 }
 
 func sumUnmarkedTiles(board [][]boardTile) (int, error) {
@@ -78,52 +104,66 @@ func sumUnmarkedTiles(board [][]boardTile) (int, error) {
 	return sum, nil
 }
 
-func getWinner(boards [][][]boardTile) [][]boardTile {
+func getWinners(boards []board) []board {
 	// marked values should fill a column or row in the board
-	for _, board := range boards {
-		var markedRows [5]int
-		var markedColumns [5]int
-		for y, boardRow := range board {
-			for x, boardTile := range boardRow {
+	winners := make([]board, 0)
+	for i := range boards {
 
-				if !boardTile.isMarked {
+		if boards[i].isWinner {
+			continue
+		}
+
+		var markedColumns [5]int
+		for y := range boards[i].value {
+			var markedRow int
+			for x := range boards[i].value[y] {
+
+				if !boards[i].value[y][x].isMarked {
 					continue
 				}
 
-				markedRows[y]++
+				markedRow++
 				markedColumns[x]++
 
 				// if any marked rows or columns have 5 then thats a winner
-				if markedRows[y] >= 5 || markedColumns[x] >= 5 {
-					return board
+				if markedRow >= 5 || markedColumns[x] >= 5 {
+					boards[i].isWinner = true
+					// this is the last winner
+
+					winners = append(winners, boards[i])
 				}
 			}
 		}
 	}
 
-	return nil
+	return winners
 }
 
 func markBoard(board [][]boardTile, value string) {
-	for _, boardRow := range board {
-		for i, _ := range boardRow {
-			if boardRow[i].isMarked || boardRow[i].value != value {
+	for k := range board {
+		for i := range board[k] {
+			if board[k][i].isMarked || board[k][i].value != value {
 				continue
 			}
 
-			boardRow[i].isMarked = true
+			board[k][i].isMarked = true
 			return
 		}
 	}
 }
 
-func buildBoards(boardInputs []string, numOfBoards int) [][][]boardTile {
+func buildBoards(boardInputs []string, numOfBoards int) []board {
 
-	boards := make([][][]boardTile, numOfBoards)
+	boards := make([]board, numOfBoards)
 
 	for i, boardInput := range boardInputs {
 		boardInputLines := strings.Split(boardInput, "\n")
-		boards[i] = make([][]boardTile, 5)
+
+		boards[i] = board{
+			value:    make([][]boardTile, 5),
+			isWinner: false,
+		}
+
 		for y, boardInputLine := range boardInputLines {
 
 			boardInputTiles := strings.Split(boardInputLine, " ")
@@ -136,10 +176,12 @@ func buildBoards(boardInputs []string, numOfBoards int) [][][]boardTile {
 					continue
 				}
 
-				boards[i][y] = append(boards[i][y], boardTile{
-					value:    boardInputTile,
-					isMarked: false,
-				})
+				boards[i].value[y] = append(
+					boards[i].value[y],
+					boardTile{
+						value:    boardInputTile,
+						isMarked: false,
+					})
 			}
 		}
 	}
